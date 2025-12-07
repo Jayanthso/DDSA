@@ -12,7 +12,7 @@ st.sidebar.title("Stock Analysis")
 
 page = st.sidebar.radio(
     "Navigation",
-    ("Market Summary", "Top Performing Stocks", "Least Performing Stocks", "Daily Returns", "Volatile Stocks", "Sector wise performance", "Stock price correlation")
+    ("Market Summary", "Top Performing Stocks", "Least Performing Stocks", "Daily Returns", "Volatile Stocks", "Sector wise performance", "Stock price correlation", "Stock Daily Price")
 )
 
 # Full-page background image
@@ -21,7 +21,7 @@ st.markdown(
     <style>
     /* Background for full main page */
     .stApp {
-            background-color: #f5f5f5;
+            background-color: #ADD8E6;
         }
     
 
@@ -137,7 +137,7 @@ if page == "Market Summary":
     st.pyplot(fig)
 
 if page == "Least Performing Stocks":
-    st.title("Least Performing Stocks")
+    st.subheader("Least Performing Stocks")
 
     conn = dbconnect()
     df = pd.read_sql("""
@@ -161,9 +161,11 @@ if page == "Least Performing Stocks":
     )
 
     st.dataframe(styled_df, hide_index=True)
+    st.subheader("Bar chart of Least 10 Stock performance")
+
 
     chart = alt.Chart(top10).mark_bar().encode(
-        x=alt.X('ticker:N', sort='-y'),
+        x=alt.X('ticker:N', sort='-y', title='Stock'),
         y=alt.Y('Annual Return:Q'),
         tooltip=['ticker', 'Annual Return']
     ).interactive().properties(width=800, height=400)
@@ -186,17 +188,38 @@ if page == "Top Performing Stocks":
 
     annual_return = annual_return.sort_values(by='Annual Return', ascending=False).reset_index(drop=True)
 
+    styled_df = annual_return.style.applymap(
+        lambda x: 'color: green; font-weight: bold' if x > 0 else 'color: red; font-weight: bold',
+        subset=['Annual Return']
+    )
+    st.subheader("Stock performance")
+    st.dataframe(styled_df, hide_index=True)
+
+    st.subheader("Bar chart of Stock performance")
+
+    chart = alt.Chart(annual_return).mark_bar().encode(
+        x=alt.X('ticker:N', sort='-y', title='Stock'),
+        y=alt.Y('Annual Return:Q'),
+        tooltip=['ticker', 'Annual Return']
+    ).interactive().properties(width=800, height=400)
+
+    st.altair_chart(chart, use_container_width=True)
+
     top10 = annual_return.head(10)  
 
-    styled_df = top10.style.applymap(
+    topstock = top10.style.applymap(
         lambda x: 'color: green; font-weight: bold',
         subset=['Annual Return']
     )
 
-    st.dataframe(styled_df, hide_index=True)
+    st.subheader("Top 10 stock performance")
+
+    st.dataframe(topstock, hide_index=True)
+    
+    st.subheader("Bar chart of Top 10 Stock performance")
 
     chart = alt.Chart(top10).mark_bar().encode(
-        x=alt.X('ticker:N', sort='-y'),
+        x=alt.X('ticker:N', sort='-y', title='Stock'),
         y=alt.Y('Annual Return:Q'),
         tooltip=['ticker', 'Annual Return']
     ).interactive().properties(width=800, height=400)
@@ -256,19 +279,28 @@ ORDER BY t.ticker, t.price_date;
 
     st.altair_chart(chart, use_container_width=True)
 
-    
-
-
+    # Stock volatility 
 if page == "Volatile Stocks":
-    st.title("Stock Volatility Analysis")
+    st.subheader("Stock Volatility Analysis")
 
-    chart = alt.Chart(vol_df.head(10)).mark_bar().encode(
-        x=alt.X('ticker:N', sort='-y'),
-        y='annual_volatility:Q',
+    chart = alt.Chart(vol_df).mark_bar().encode(
+        x=alt.X('ticker:N', sort='-y', title='Stock'),
+        y=alt.Y('annual_volatility:Q', title='Annual Volatility'),
         tooltip=['ticker','annual_volatility']
     ).interactive().properties(width=800, height=400)
 
     st.altair_chart(chart, use_container_width=True)
+    
+    st.subheader("Top 10 volatile stocks")
+
+    chart = alt.Chart(vol_df.head(10)).mark_bar().encode(
+        x=alt.X('ticker:N', sort='-y', title='Stock'),
+        y=alt.Y('annual_volatility:Q', title='Annual Volatility'),
+        tooltip=['ticker','annual_volatility']
+    ).interactive().properties(width=800, height=400)
+
+    st.altair_chart(chart, use_container_width=True)
+
 
 if page == "Sector wise performance":
 
@@ -405,3 +437,51 @@ if page == 'Stock price correlation':
     yaxis_title="Stock"
 )
     st.plotly_chart(fig, use_container_width=True)
+
+if page == "Stock Daily Price":
+    conn = dbconnect()
+    df = pd.read_sql("""
+        select ticker,price_date,open_price,close_price,high,low,volume 
+        from ddsa.stock_price order by price_date,ticker asc;
+    """, conn)
+    conn.close()
+
+    st.subheader("Stock Daily Price Trend")
+
+    # Convert date to datetime (important for filtering)
+    df['price_date'] = pd.to_datetime(df['price_date'])
+
+    # Sidebar filters / Main filters
+    tickers = st.multiselect("Select Stock(s):", df['ticker'].unique(), default=df['ticker'].unique()[:2])
+
+    start_date = st.date_input("Start Date", value=df['price_date'].min())
+    end_date = st.date_input("End Date", value=df['price_date'].max())
+
+    # Apply filters
+    filtered_df = df[
+        (df['ticker'].isin(tickers)) &
+        (df['price_date'] >= pd.to_datetime(start_date)) &
+        (df['price_date'] <= pd.to_datetime(end_date))
+    ]
+
+    # Create line chart
+    line_chart = (
+        alt.Chart(filtered_df)
+        .mark_line(point=True)
+        .encode(
+            x=alt.X('price_date:T', title='Date'),
+            y=alt.Y('close_price:Q', title='Close Price'),
+            color='ticker:N',
+            tooltip=['price_date:T', 'ticker:N', 'close_price:Q']
+        )
+        .properties(width=850, height=450)
+        .interactive()
+    )
+
+    st.altair_chart(line_chart, use_container_width=True)
+
+
+
+
+
+
