@@ -431,7 +431,7 @@ if page == "Sector and Stock Performance":
     st.dataframe(result_df, hide_index=True)
 
     # Plot bar chart
-    fig, ax = plt.subplots(figsize=(8, 3))
+    fig, ax = plt.subplots(figsize=(7, 2))
     returns.plot(kind="bar", ax=ax)
     ax.set_title(f"{sector_choice} Sector - Return %", fontsize=16, fontweight="bold")
     ax.set_xlabel("Stocks", fontsize=14)
