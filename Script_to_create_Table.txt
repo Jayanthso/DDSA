@@ -1,0 +1,14 @@
+create database ddsa;
+
+CREATE TABLE ddsa.stock_price (
+    ticker       VARCHAR(100),
+    price_date   DATE,
+    open_price   int(20),
+    high         int(20),
+    low          int(20),
+    close_price  int(20),
+    volume       int(20),
+    price_month  VARCHAR(20),
+    market_cap decimal(20,2),
+    CONSTRAINT stock_price_pk PRIMARY KEY (ticker, price_date)
+);
