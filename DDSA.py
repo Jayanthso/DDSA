@@ -12,7 +12,7 @@ st.sidebar.title("Stock Analysis")
 
 page = st.sidebar.radio(
     "Navigation",
-    ("Market Summary", "Top Performing Stocks", "Least Performing Stocks", "Daily Returns", "Volatile Stocks", "Sector wise performance", "Stock price correlation", "Stock Daily Price")
+    ("Market Summary", "Stock Daily Price", "Sector and Stock Performance", "Stock Performance", "Least Performing Stocks", "Daily Returns", "Stocks Volatility", "Sector wise performance", "Stock price correlation")
 )
 
 # Full-page background image
@@ -109,11 +109,13 @@ if page == "Market Summary":
     red_stocks = (annual_return['Annual Return (%)'] <= 0).sum()
     avg_price = df['close_price'].mean()
     avg_volume = df['volume'].mean()
+    mean_return = annual_return['Annual Return (%)'].mean()
     
     st.subheader("Market Summary")
     st.metric("Total Stocks", total_stocks)
     st.metric("Green Stocks", green_stocks)
     st.metric("Red Stocks", red_stocks)
+    st.metric("Average Return in percent", round(mean_return,2))
     st.metric("Average Price", round(avg_price,2))
     st.metric("Average Volume", int(avg_volume))
 
@@ -172,8 +174,7 @@ if page == "Least Performing Stocks":
 
     st.altair_chart(chart, use_container_width=True)
 
-if page == "Top Performing Stocks":
-    st.title("Top Performing Stocks")
+if page == "Stock Performance":
 
     conn = dbconnect()
     df = pd.read_sql("""
@@ -245,7 +246,7 @@ ORDER BY t.ticker, t.price_date;
     conn.close()
 
     df1 = df.sort_values(by='daily_return', ascending=False)
-    df1 = df1.rename(columns={'daily_return': 'Daily Return'})
+    df1 = df1.rename(columns={'daily_return': 'Daily Return', 'ticker': 'Stock', 'price_date': 'Date', 'close_price': 'Close Price'})
 
     st.subheader("Top 10 Daily Returns")
     styled_df = df1.head(10).style.applymap(
@@ -254,9 +255,8 @@ ORDER BY t.ticker, t.price_date;
     )
     st.dataframe(styled_df, hide_index=True)
 
-    df2 = df1.sort_values(by=['ticker', 'price_date'], ascending=True)
-    df2['Cumulative Return'] = df2.groupby('ticker')['Daily Return'].cumsum()
-    df2 = df2.rename(columns={'ticker': 'Stock', 'price_date': 'Date'})
+    df2 = df1.sort_values(by=['Stock', 'Date'], ascending=True)
+    df2['Cumulative Return'] = df2.groupby('Stock')['Daily Return'].cumsum()
 
     st.subheader("Cumulative return of stocks")
     selected = st.selectbox("Choose Stock", df2['Stock'].unique())
@@ -280,7 +280,7 @@ ORDER BY t.ticker, t.price_date;
     st.altair_chart(chart, use_container_width=True)
 
     # Stock volatility 
-if page == "Volatile Stocks":
+if page == "Stocks Volatility":
     st.subheader("Stock Volatility Analysis")
 
     chart = alt.Chart(vol_df).mark_bar().encode(
@@ -396,8 +396,53 @@ ORDER BY t.ticker, t.price_date;
     ).properties(width=900, height=400)
 
     st.altair_chart(chart, use_container_width=True)
-    
 
+if page == "Sector and Stock Performance":
+    conn = dbconnect()
+    query = """
+    SELECT ticker, price_date, close_price, high, low, volume, sector
+    FROM ddsa.stock_price
+    ORDER BY price_date ASC;
+    """
+    df = pd.read_sql(query, conn)
+    conn.close()
+
+    st.subheader("Sector - Stock Performance")
+
+    sectors = df['sector'].unique()
+
+    sector_choice = st.selectbox("Select a Sector", sectors)
+
+    sector_df = df[df['sector'] == sector_choice]
+
+    start_prices = sector_df.groupby('ticker').first()['close_price']
+    latest_prices = sector_df.groupby('ticker').last()['close_price']
+
+    returns = ((latest_prices - start_prices) / start_prices) * 100
+
+    result_df = pd.DataFrame({
+        "Stock": start_prices.index,
+        "Start Price": start_prices.values,
+        "Latest Price": latest_prices.values,
+        "Return %": returns.values
+    })
+
+    st.write(f"### 📈 Performance Summary for {sector_choice}")
+    st.dataframe(result_df, hide_index=True)
+
+    # Plot bar chart
+    fig, ax = plt.subplots(figsize=(8, 3))
+    returns.plot(kind="bar", ax=ax)
+    ax.set_title(f"{sector_choice} Sector - Return %", fontsize=16, fontweight="bold")
+    ax.set_xlabel("Stocks", fontsize=14)
+    ax.set_ylabel("Return %", fontsize=14)
+
+    ax.tick_params(axis='x', rotation=45, labelsize=12)
+    ax.tick_params(axis='y', labelsize=12)
+
+    st.pyplot(fig)
+
+    
 if page == 'Stock price correlation':
     conn = dbconnect()
     query = """
